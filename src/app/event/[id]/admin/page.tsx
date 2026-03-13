@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { EventData, Participant } from "@/lib/types";
 import { QRCodeCanvas } from "@/components/qr-code";
-import { GroupCard } from "@/components/group-card";
+import { AdminGroupCard } from "@/components/admin-group-card";
 
 export default function AdminPage() {
   const params = useParams();
@@ -15,11 +15,17 @@ export default function AdminPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedJoin, setCopiedJoin] = useState(false);
+  const [copiedResult, setCopiedResult] = useState(false);
 
   const joinUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/event/${eventId}/join`
+      : "";
+
+  const resultUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/event/${eventId}/result`
       : "";
 
   // イベント情報を取得
@@ -47,10 +53,16 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [fetchParticipants]);
 
-  const handleCopy = async () => {
+  const handleCopyJoin = async () => {
     await navigator.clipboard.writeText(joinUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedJoin(true);
+    setTimeout(() => setCopiedJoin(false), 2000);
+  };
+
+  const handleCopyResult = async () => {
+    await navigator.clipboard.writeText(resultUrl);
+    setCopiedResult(true);
+    setTimeout(() => setCopiedResult(false), 2000);
   };
 
   if (error) {
@@ -90,23 +102,45 @@ export default function AdminPage() {
             className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600"
           />
           <button
-            onClick={handleCopy}
+            onClick={handleCopyJoin}
             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
           >
-            {copied ? "コピー済み!" : "コピー"}
+            {copiedJoin ? "コピー済み!" : "コピー"}
           </button>
         </div>
       </div>
 
-      {/* グループ一覧 */}
+      {/* 閲覧用URL */}
+      <div className="bg-white p-4 rounded-2xl shadow-lg border border-gray-100 space-y-2">
+        <h2 className="font-bold text-sm">結果閲覧用URL</h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={resultUrl}
+            readOnly
+            className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600"
+          />
+          <button
+            onClick={handleCopyResult}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+          >
+            {copiedResult ? "コピー済み!" : "コピー"}
+          </button>
+        </div>
+      </div>
+
+      {/* グループ一覧 (管理機能付き) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {event.groups.map((group) => (
-          <GroupCard
+          <AdminGroupCard
             key={group.index}
+            eventId={eventId}
             group={group}
+            allGroups={event.groups}
             participants={participants.filter(
               (p) => p.groupIndex === group.index
             )}
+            onUpdate={fetchParticipants}
           />
         ))}
       </div>

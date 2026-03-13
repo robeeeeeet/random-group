@@ -43,33 +43,38 @@ export async function getEvent(id: string): Promise<EventData | null> {
   return JSON.parse(data);
 }
 
-// 参加者追加 (グループ自動割当)
+// 参加者追加 (グループ指定 or 自動割当)
 export async function addParticipant(
   eventId: string,
-  name: string
+  name: string,
+  groupIndex?: number
 ): Promise<Participant | null> {
   const event = await getEvent(eventId);
   if (!event) return null;
 
-  const participants = await getParticipants(eventId);
+  let assignedGroup: number;
 
-  // 各グループの人数をカウント
-  const counts = new Array(event.groupCount).fill(0);
-  for (const p of participants) {
-    counts[p.groupIndex]++;
+  if (groupIndex !== undefined && groupIndex >= 0 && groupIndex < event.groupCount) {
+    // グループ指定あり
+    assignedGroup = groupIndex;
+  } else {
+    // ランダム割当: 最少人数のグループから選択
+    const participants = await getParticipants(eventId);
+    const counts = new Array(event.groupCount).fill(0);
+    for (const p of participants) {
+      counts[p.groupIndex]++;
+    }
+    const minCount = Math.min(...counts);
+    const candidates = counts
+      .map((count, index) => ({ count, index }))
+      .filter((g) => g.count === minCount);
+    assignedGroup = candidates[Math.floor(Math.random() * candidates.length)].index;
   }
-
-  // 最少人数のグループからランダムに選択
-  const minCount = Math.min(...counts);
-  const candidates = counts
-    .map((count, index) => ({ count, index }))
-    .filter((g) => g.count === minCount);
-  const selected = candidates[Math.floor(Math.random() * candidates.length)];
 
   const participant: Participant = {
     id: nanoid(8),
     name,
-    groupIndex: selected.index,
+    groupIndex: assignedGroup,
   };
 
   await redis.zadd(`participants:${eventId}`, {
@@ -88,4 +93,47 @@ export async function getParticipants(eventId: string): Promise<Participant[]> {
     if (typeof m === "object") return m as unknown as Participant;
     return JSON.parse(m as string);
   });
+}
+
+// 参加者削除
+export async function removeParticipant(
+  eventId: string,
+  participantId: string
+): Promise<boolean> {
+  const members = await redis.zrange(`participants:${eventId}`, 0, -1);
+  for (const m of members) {
+    const p: Participant = typeof m === "object" ? (m as unknown as Participant) : JSON.parse(m as string);
+    if (p.id === participantId) {
+      await redis.zrem(`participants:${eventId}`, typeof m === "object" ? JSON.stringify(m) : m);
+      return true;
+    }
+  }
+  return false;
+}
+
+// 参加者更新 (名前変更・グループ移動)
+export async function updateParticipant(
+  eventId: string,
+  participantId: string,
+  updates: { name?: string; groupIndex?: number }
+): Promise<Participant | null> {
+  const key = `participants:${eventId}`;
+  const members = await redis.zrange(key, 0, -1);
+
+  for (const m of members) {
+    const p: Participant = typeof m === "object" ? (m as unknown as Participant) : JSON.parse(m as string);
+    if (p.id === participantId) {
+      // scoreを取得
+      const score = await redis.zscore(key, typeof m === "object" ? JSON.stringify(m) : m);
+      if (score === null) return null;
+      // 古いメンバーを削除
+      await redis.zrem(key, typeof m === "object" ? JSON.stringify(m) : m);
+      // 更新して再追加
+      if (updates.name !== undefined) p.name = updates.name;
+      if (updates.groupIndex !== undefined) p.groupIndex = updates.groupIndex;
+      await redis.zadd(key, { score, member: JSON.stringify(p) });
+      return p;
+    }
+  }
+  return null;
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { Group } from "@/lib/types";
 
 interface JoinFormProps {
   eventId: string;
+  groups: Group[];
   onJoined: (participant: { id: string; name: string; groupIndex: number }) => void;
 }
 
-export function JoinForm({ eventId, onJoined }: JoinFormProps) {
+export function JoinForm({ eventId, groups, onJoined }: JoinFormProps) {
   const [name, setName] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,10 +23,15 @@ export function JoinForm({ eventId, onJoined }: JoinFormProps) {
     setError("");
 
     try {
+      const body: { name: string; groupIndex?: number } = { name: name.trim() };
+      if (selectedGroup !== null) {
+        body.groupIndex = selectedGroup;
+      }
+
       const res = await fetch(`/api/events/${eventId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -58,6 +66,45 @@ export function JoinForm({ eventId, onJoined }: JoinFormProps) {
           autoFocus
         />
       </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          グループ <span className="text-gray-400 font-normal">(任意)</span>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedGroup(null)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              selectedGroup === null
+                ? "bg-gray-800 text-white shadow-md"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            ランダム
+          </button>
+          {groups.map((group) => (
+            <button
+              key={group.index}
+              type="button"
+              onClick={() => setSelectedGroup(group.index)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                selectedGroup === group.index
+                  ? "text-white shadow-md"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+              style={
+                selectedGroup === group.index
+                  ? { backgroundColor: group.color }
+                  : undefined
+              }
+            >
+              {group.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <button
         type="submit"

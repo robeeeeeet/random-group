@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { name } = await req.json();
+  const { name, groupIndex } = await req.json();
 
   if (!name || name.trim().length === 0) {
     return NextResponse.json(
@@ -16,7 +16,11 @@ export async function POST(
     );
   }
 
-  const participant = await addParticipant(id, name.trim());
+  const participant = await addParticipant(
+    id,
+    name.trim(),
+    groupIndex !== undefined && groupIndex !== null ? Number(groupIndex) : undefined
+  );
 
   if (!participant) {
     return NextResponse.json(
