@@ -55,6 +55,12 @@ export default function JoinPage() {
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
           <JoinForm eventId={eventId} groups={event.groups} onJoined={handleJoined} />
         </div>
+        <button
+          onClick={() => router.push(`/event/${eventId}/result`)}
+          className="w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          登録せず結果を見る
+        </button>
       </div>
     </main>
   );
